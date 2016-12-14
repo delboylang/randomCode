@@ -1232,28 +1232,39 @@ heredoc;
 										if($fieldName	== "_cart_discount"){
 											$fieldValue	=	get_post_meta ( $product->order_id, "_cart_discount", true );
 											if($hasRefundRef &&  $product->quantity < 0){
-												$fieldValue = -1 * $fieldValue; 
+										//		$fieldValue = -1 * $fieldValue; 
 											}
-										}
+										}		
+										$storedArray[$field] =  (is_array ( $fieldValue ) ? hm_xoiwcp_array_string ( $fieldValue ) : $fieldValue);
 										break;
 									case 'order_item' :
 										$fieldValue = (isset ( $product->$field ) ? $product->$field : wc_get_order_item_meta ( $product->order_item_id, $fieldName, true ));
+										$storedArray[$field] =  (is_array ( $fieldValue ) ? hm_xoiwcp_array_string ( $fieldValue ) : $fieldValue);
 										break;
 									case 'product' :
 										$fieldValue = get_post_meta ( $product->product_id, $fieldName, true );
+										if($fieldName	== '_price' &&  $_REQUEST ['reportType'] == "invoice"){
+											$fieldValue = $product->quantity * $fieldValue; 
+											$storedArray[$field]	=	$storedArray[$field]  + 	$fieldValue ;
+										}
+										
 										break;
 									case 'product_variation' :
 										$fieldValue = get_post_meta ( $product->variation_id, $fieldName, true );
+										$storedArray[$field] =  (is_array ( $fieldValue ) ? hm_xoiwcp_array_string ( $fieldValue ) : $fieldValue);
 										break;
 									case 'customer_user' :
 										$fieldValue = get_user_meta ( $product->$customerIdField, $fieldName, true );
+										$storedArray[$field] =  (is_array ( $fieldValue ) ? hm_xoiwcp_array_string ( $fieldValue ) : $fieldValue);
 										break;
 									default :
 										$fieldValue = ''; // No field type match
 								}
 								
 								$fieldValue = maybe_unserialize ( $fieldValue );
-								$storedArray[$field] =  (is_array ( $fieldValue ) ? hm_xoiwcp_array_string ( $fieldValue ) : $fieldValue);
+								
+									//$storedArray[$field] =  (is_array ( $fieldValue ) ? hm_xoiwcp_array_string ( $fieldValue ) : $fieldValue);
+								
 								$row [] = (is_array ( $fieldValue ) ? hm_xoiwcp_array_string ( $fieldValue ) : $fieldValue);
 							}
 					}
@@ -1737,11 +1748,16 @@ function hm_xoiwcp_sanitize_license($new) {
 function staxo_setRequest(){
 	$state 					=	false;
 	$_POST['report_time']	=	"custom";
+	$which =	"Price";
+	if(isset($_REQUEST['reportType']) && $_REQUEST['reportType'] == "invoice"){
+		$which	=	'Total Product Cost';
+	}
+	
 	$_POST['field_names'] 	=	array (
 										'order_date' => 'Order Date/Time',
 										'order_id' => 'Order ID',
 										'quantity' => 'Line Item Quantity',
-										'__product___price' => 'Price',
+										'__product___price' => $which,
 										'line_subtotal' => 'Total Product Cost',
 										'order_shipping_cost' => 'Shipping Cost',
 										'__shop_order___order_total' => 'Order Total',
@@ -1783,14 +1799,15 @@ function staxo_setRequest(){
 									'order_date',
 												'__shop_order___order_number',
 												 'quantity',	
-												 'line_subtotal',
+												'__product___price',
 												'__shop_order___cart_discount',
 												 'order_shipping_cost',
 												 '__shop_order___order_total',
 												 'billing_name',
 												 '__shop_order___billing_address_1',
 												 '__shop_order___billing_postcode',
-												'order_status'
+												'order_status',
+									 			'line_subtotal',
 							),
 							"customer"=>array(	
 												'order_date',
