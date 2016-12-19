@@ -1008,7 +1008,7 @@ heredoc;
 						}
 					}
 					$row [] =	  $orderID;
-					$storedArray['creditNote'] = 	$postparentID."::". $orderID;
+					$storedArray['creditNote'] = 	$orderID;
 			}
 			
 			foreach ( $_POST ['fields'] as $field ) {
@@ -1910,7 +1910,7 @@ heredoc;
 	$sorted		=	$storedData;
 
 	if($refunds){
-		foreach($refunds AS  $refund ){
+		foreach($refunds AS   $key=> $refund ){
 			foreach($storedData as $product){
 				if($product->order_id == $refund->order_id){
 					unset($refunds[$key]);
@@ -1919,14 +1919,17 @@ heredoc;
 		}
 		foreach($refunds as $key=> $refund ){
 			$products	=	staxo_getOrigOrder($refund->post_parent);
-
-				foreach($products as $product){
+			$max= count($refund);
+			foreach($products as $product){
+				if($product->order_status	!= "wc-cancelled"){
 					$product->order_id		=	$refund->order_id;
 					$product->order_status	=	'wc-refunded';
 					$product->order_date	= $refund->date;
-					$refundOrder[] = $product;	
+					$refundOrder[] = $product;
 				}
+			}
 		}
+
 		if(is_array( 			$refundOrder)){
 			$testRes =	array_merge($refundOrder	,$storedData);
 			$col  = 'order_id';
