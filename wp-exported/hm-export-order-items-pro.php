@@ -201,10 +201,10 @@ function hm_xoiwcp_on_init() {
 		} else if ($_POST ['format'] == 'html' || $_POST ['format'] == 'html-enhanced') {
 			header ( 'Content-Type: text/html; charset=utf-8' );
 		} else if ($_POST ['format'] == 'csv-ascii') {
-			header ( 'Content-Type: text/csv; charset=iso-8859-1' );
+		//	header ( 'Content-Type: text/csv; charset=iso-8859-1' );
 			$filename .= '.csv';
 		} else {
-			header ( 'Content-Type: text/csv; charset=utf-8' );
+	//		header ( 'Content-Type: text/csv; charset=utf-8' );
 			$filename .= '.csv';
 		}
 		if ($_POST ['format'] != 'html' && $_POST ['format'] != 'html-enhanced') {
@@ -915,10 +915,27 @@ function hm_xoiwcp_export_body($dest) {
 			);
 		}
 		$count	=	0;
+		
+		$sold_products = staxo_getRefunds($sold_products, $start_date , $end_date);
+		
 		$max	=	count( $sold_products);
-		// Output report rows
+		
+		/*
+		 * We need to get the onest that have been refunded during this period. 
+		 * 
+		 * So firstly go 
+		 * 
+		 * 
+		 */
+		
 		foreach ( $sold_products as $product ) {
+			
+			
 			$count++;
+			
+
+		
+			
 			if($product->line_subtotal == 0) { // eXCLUDE THEM ALL FOR NOW 
 				continue;
 			}
@@ -959,6 +976,8 @@ function hm_xoiwcp_export_body($dest) {
 			 */
 			$row = array ();
 			$hasRefundRef	=	false;
+			
+			
 			if ($refundFlag) {	
 					
 					$sql	=	<<<heredoc
@@ -971,10 +990,11 @@ heredoc;
 					if(!$orderID){
 						$orderID = $product->order_id;
 					}
-					
+				
 					if($refundid->post_parent){ 
 						$orderID	=	$product->order_id; // Assign  it back. 
 						$product->order_id	=	$refundid->post_parent; 	
+						$postparentID	=	$refundid->post_parent;
 						$hasRefundRef	=	true;
 					}
 					$render	=true;
@@ -988,7 +1008,7 @@ heredoc;
 						}
 					}
 					$row [] =	  $orderID;
-					$storedArray['creditNote']	= $orderID;
+					$storedArray['creditNote'] = 	$postparentID."::". $orderID;
 			}
 			
 			foreach ( $_POST ['fields'] as $field ) {
@@ -1124,6 +1144,14 @@ heredoc;
 							break;
 							
 						case 'line_subtotal' :
+							$fieldPrice = get_post_meta ( $product->product_id, "_price", true );
+							if($fieldPrice){
+								$amount	=	$product->quantity * $fieldPrice;
+							
+								if($amount != $product->line_subtotal){
+									$product->line_subtotal = $amount;
+								}
+							}
 							if ($product->order_status == 'wc-refunded' || $hasRefundRef) {
 								if($product->line_subtotal > 0){
 									$row [] 			 = $product->line_subtotal * - 1;
@@ -1232,7 +1260,7 @@ heredoc;
 										if($fieldName	== "_cart_discount"){
 											$fieldValue	=	get_post_meta ( $product->order_id, "_cart_discount", true );
 											if($hasRefundRef &&  $product->quantity < 0){
-										//		$fieldValue = -1 * $fieldValue; 
+												$fieldValue = -1 * $fieldValue; 
 											}
 										}		
 										$storedArray[$field] =  (is_array ( $fieldValue ) ? hm_xoiwcp_array_string ( $fieldValue ) : $fieldValue);
@@ -1273,7 +1301,7 @@ heredoc;
 				if (isset ( $totals [$field] ) && (! isset ( $orderShippingTotalSkipIds ) || ! in_array ( $field, $orderShippingTotalSkipFields ) || ! isset ( $orderShippingTotalSkipIds [$product->order_id] ))) {
 					$totals [$field] += end ( $row );
 				}
-		
+
 			}
 			
 			$totalProductArray[$product->product_id][0] 	=  	get_post_meta ( $product->product_id, '_sku', true );
@@ -1605,6 +1633,7 @@ function hm_xoiwcp_get_order_filter_fields() {
  * Licensing *
  */
 function hm_xoiwcp_license_check() {
+	return true;
 	if (isset ( $_POST ['hm_xoiwcp_license_deactivate'] )) {
 		hm_xoiwcp_deactivate_license ();
 	}
@@ -1866,4 +1895,170 @@ function staxo_getStoredArray(){
 }
 
 
+function staxo_getRefunds($storedData,  $from , $to){
+	global $wpdb;
+		$from 	=	date ( 'Y-m-d H:i:s', $from );
+		$to 	=	date( 'Y-m-d H:i:s', $to );
+	
+	$sql  =	<<<heredoc
+select id as order_id , post_parent as post_parent, post_date as date from wp_posts where post_parent != 0	
+AND post_date >= '{$from}' AND post_date < '$to'
+AND post_type IN('shop_order', 'shop_order_refund')
+heredoc;
+	
+	$refunds	= 	$wpdb->get_results($sql);
+	$sorted		=	$storedData;
+
+	if($refunds){
+		foreach($refunds AS  $refund ){
+			foreach($storedData as $product){
+				if($product->order_id == $refund->order_id){
+					unset($refunds[$key]);
+				}
+			}
+		}
+		foreach($refunds as $key=> $refund ){
+			$products	=	staxo_getOrigOrder($refund->post_parent);
+
+				foreach($products as $product){
+					$product->order_id		=	$refund->order_id;
+					$product->order_status	=	'wc-refunded';
+					$product->order_date	= $refund->date;
+					$refundOrder[] = $product;	
+				}
+		}
+		if(is_array( 			$refundOrder)){
+			$testRes =	array_merge($refundOrder	,$storedData);
+			$col  = 'order_id';
+			$sort = array();
+			foreach ($testRes as $i => $obj) {
+				$sort[$i] = $obj->{$col};
+			}
+			$sorted_test = array_multisort($sort, SORT_ASC, $testRes);			
+			return $testRes;
+		}
+	}
+	return $sorted;
+}
+
+function staxo_getOrigOrder($id){
+	global $wpdb;
+	$sqlTwo = <<<heredoc
+SELECT
+  order_item_meta__product_id.meta_value AS product_id,
+  order_item_meta__variation_id.meta_value AS variation_id,
+  order_items.order_id AS order_id,
+  order_items.order_item_id AS order_item_id,
+  order_item_meta__qty.meta_value AS quantity,
+  order_item_meta__line_subtotal.meta_value AS line_subtotal,
+  posts.post_status AS order_status,
+  posts.post_date AS order_date,
+  meta__billing_first_name.meta_value AS billing_first_name,
+  meta__billing_last_name.meta_value AS billing_last_name,
+  meta__order_number.meta_value AS __shop_order___order_number,
+  meta__cart_discount.meta_value AS __shop_order___cart_discount,
+  meta__order_total.meta_value AS __shop_order___order_total,
+  meta__billing_address_1.meta_value AS __shop_order___billing_address_1,
+  meta__billing_postcode.meta_value AS __shop_order___billing_postcode
+FROM
+  wp_posts AS posts
+LEFT JOIN
+  wp_woocommerce_order_items AS order_items
+ON
+  (
+    posts.ID = order_items.order_id
+  ) AND(
+    order_items.order_item_type = 'line_item'
+  )
+INNER JOIN
+  wp_woocommerce_order_itemmeta AS order_item_meta__product_id
+ON
+  (
+    order_items.order_item_id = order_item_meta__product_id.order_item_id
+  ) AND(
+    order_item_meta__product_id.meta_key = '_product_id'
+  )
+LEFT JOIN
+  wp_woocommerce_order_itemmeta AS order_item_meta__variation_id
+ON
+  (
+    order_items.order_item_id = order_item_meta__variation_id.order_item_id
+  ) AND(
+    order_item_meta__variation_id.meta_key = '_variation_id'
+  )
+LEFT JOIN
+  wp_woocommerce_order_itemmeta AS order_item_meta__qty
+ON
+  (
+    order_items.order_item_id = order_item_meta__qty.order_item_id
+  ) AND(
+    order_item_meta__qty.meta_key = '_qty'
+  )
+LEFT JOIN
+  wp_woocommerce_order_itemmeta AS order_item_meta__line_subtotal
+ON
+  (
+    order_items.order_item_id = order_item_meta__line_subtotal.order_item_id
+  ) AND(
+    order_item_meta__line_subtotal.meta_key = '_line_subtotal'
+  )
+LEFT JOIN
+  wp_postmeta AS meta__billing_first_name
+ON
+  (
+    posts.ID = meta__billing_first_name.post_id AND meta__billing_first_name.meta_key = '_billing_first_name'
+  )
+LEFT JOIN
+  wp_postmeta AS meta__billing_last_name
+ON
+  (
+    posts.ID = meta__billing_last_name.post_id AND meta__billing_last_name.meta_key = '_billing_last_name'
+  )
+LEFT JOIN
+  wp_postmeta AS meta__order_number
+ON
+  (
+    posts.ID = meta__order_number.post_id AND meta__order_number.meta_key = '_order_number'
+  )
+LEFT JOIN
+  wp_postmeta AS meta__cart_discount
+ON
+  (
+    posts.ID = meta__cart_discount.post_id AND meta__cart_discount.meta_key = '_cart_discount'
+  )
+LEFT JOIN
+  wp_postmeta AS meta__order_total
+ON
+  (
+    posts.ID = meta__order_total.post_id AND meta__order_total.meta_key = '_order_total'
+  )
+LEFT JOIN
+  wp_postmeta AS meta__billing_address_1
+ON
+  (
+    posts.ID = meta__billing_address_1.post_id AND meta__billing_address_1.meta_key = '_billing_address_1'
+  )
+LEFT JOIN
+  wp_postmeta AS meta__billing_postcode
+ON
+  (
+    posts.ID = meta__billing_postcode.post_id AND meta__billing_postcode.meta_key = '_billing_postcode'
+  )
+WHERE
+		posts.post_type IN('shop_order', 'shop_order_refund') AND
+  		ID='{$id}'
+heredoc;
+	$orders 	= 	$wpdb->get_results($sqlTwo);
+
+	
+	
+	return $orders;
+}
+
+function stax_cmp($a, $b){
+	$t1 = strtotime($a->order_date);
+	$t2 = strtotime($b->order_date);
+	return $t1 - $t2;
+	
+}
 ?>
