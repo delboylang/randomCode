@@ -1918,14 +1918,13 @@ heredoc;
 				}
 			}
 		}
-		
-
+	
 		foreach($refunds as $key=> $refund ){
 			$products	=	staxo_getOrigOrder($refund->post_parent);
 			$max =	count($products);
 			$currentCount	=	0;
 			$sqlGetOrderTotal 	=	<<<heredoc
-select meta_value from wp_postmeta where meta_key="_refund_amount" and post_id={$refund->order_id}	
+select meta_value from wp_postmeta where meta_key="_refund_amount" and post_id={$refund->order_id}
 heredoc;
 
 			$value = $wpdb->get_row ($sqlGetOrderTotal);
@@ -1936,14 +1935,22 @@ heredoc;
 					if($product->__shop_order___order_total != 	$value->meta_value){
 						if($value->meta_value == $product->line_total){
 							/*
-							 * Hack to deal with partial orders.
-							 * 
+							 * Hack to deal with partial orders. 
 							 */
 							$product->order_id		=	$refund->order_id;
 							$product->order_status	=	'wc-refunded';
 							$product->order_date	= $refund->date;
 							$product->__shop_order___order_total = $value->meta_value;
 							$refundOrder[] = $product;
+						}else{
+							if($currentCount==$max ){// Deal with the order not having any products and just assign ONE value to it as a small amount 
+								$product->order_id		=	$refund->order_id;
+								$product->order_status	=	'wc-refunded';
+								$product->order_date	= $refund->date;
+								$product->quantity		=	0.000001;
+								$product->__shop_order___order_total = $value->meta_value;
+								$refundOrder[] = $product;
+							}
 						}
 					}else{
 						$product->order_id		=	$refund->order_id;
@@ -1952,7 +1959,6 @@ heredoc;
 						$refundOrder[] = $product;
 					}
 				}
-				
 			}
 		}
 
