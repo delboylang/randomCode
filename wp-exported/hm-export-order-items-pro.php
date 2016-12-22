@@ -1908,7 +1908,8 @@ heredoc;
 	
 	$refunds	= 	$wpdb->get_results($sql);
 	$sorted		=	$storedData;
-
+	
+	
 	if($refunds){
 		foreach($refunds AS   $key=> $refund ){
 			foreach($storedData as $product){
@@ -1917,16 +1918,41 @@ heredoc;
 				}
 			}
 		}
+		
+
 		foreach($refunds as $key=> $refund ){
 			$products	=	staxo_getOrigOrder($refund->post_parent);
-			$max= count($refund);
+			$max =	count($products);
+			$currentCount	=	0;
+			$sqlGetOrderTotal 	=	<<<heredoc
+select meta_value from wp_postmeta where meta_key="_refund_amount" and post_id={$refund->order_id}	
+heredoc;
+
+			$value = $wpdb->get_row ($sqlGetOrderTotal);
+
 			foreach($products as $product){
+				$currentCount++;
 				if($product->order_status	!= "wc-cancelled"){
-					$product->order_id		=	$refund->order_id;
-					$product->order_status	=	'wc-refunded';
-					$product->order_date	= $refund->date;
-					$refundOrder[] = $product;
+					if($product->__shop_order___order_total != 	$value->meta_value){
+						if($value->meta_value == $product->line_total){
+							/*
+							 * Hack to deal with partial orders.
+							 * 
+							 */
+							$product->order_id		=	$refund->order_id;
+							$product->order_status	=	'wc-refunded';
+							$product->order_date	= $refund->date;
+							$product->__shop_order___order_total = $value->meta_value;
+							$refundOrder[] = $product;
+						}
+					}else{
+						$product->order_id		=	$refund->order_id;
+						$product->order_status	=	'wc-refunded';
+						$product->order_date	= $refund->date;
+						$refundOrder[] = $product;
+					}
 				}
+				
 			}
 		}
 
@@ -1954,6 +1980,7 @@ SELECT
   order_items.order_item_id AS order_item_id,
   order_item_meta__qty.meta_value AS quantity,
   order_item_meta__line_subtotal.meta_value AS line_subtotal,
+  order_item_meta__line_total.meta_value AS line_total,
   posts.post_status AS order_status,
   posts.post_date AS order_date,
   meta__billing_first_name.meta_value AS billing_first_name,
@@ -1996,6 +2023,14 @@ ON
     order_items.order_item_id = order_item_meta__qty.order_item_id
   ) AND(
     order_item_meta__qty.meta_key = '_qty'
+  )
+LEFT JOIN
+  wp_woocommerce_order_itemmeta AS order_item_meta__line_total
+ON
+  (
+    order_items.order_item_id = order_item_meta__line_total.order_item_id
+  ) AND(
+    order_item_meta__line_total.meta_key = '_line_total'
   )
 LEFT JOIN
   wp_woocommerce_order_itemmeta AS order_item_meta__line_subtotal
