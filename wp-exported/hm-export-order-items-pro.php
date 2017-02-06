@@ -1270,13 +1270,20 @@ heredoc;
 										$storedArray[$field] =  (is_array ( $fieldValue ) ? hm_xoiwcp_array_string ( $fieldValue ) : $fieldValue);
 										break;
 									case 'product' :
-										$fieldValue = get_post_meta ( $product->product_id, $fieldName, true );
+										if($fieldName	== '_price'){
+											$fieldValue = get_post_meta ( $product->product_id, $fieldName, true );
+											$subTotal		=	$product->line_subtotal;
+											$priceOfProduct	=	$product->line_subtotal / $product->quantity; 	 
+											if($fieldValue != $priceOfProduct){
+												$fieldValue 	=	 $priceOfProduct;
+											}
+										}
 										if($fieldName	== '_price' &&  $_REQUEST ['reportType'] == "invoice"){
 											$fieldValue = $product->quantity * $fieldValue; 
 											$storedArray[$field]	=	$storedArray[$field]  + 	$fieldValue ;
 										}
-										
 										break;
+										
 									case 'product_variation' :
 										$fieldValue = get_post_meta ( $product->variation_id, $fieldName, true );
 										$storedArray[$field] =  (is_array ( $fieldValue ) ? hm_xoiwcp_array_string ( $fieldValue ) : $fieldValue);
@@ -1884,9 +1891,7 @@ function staxo_setRequest(){
 		$_POST['fields']			=	$storeRequest[$_REQUEST['reportType']];
 		$_POST['order_statuses']	=	$status[$_REQUEST['reportType']];
 		$state	=	true;
-	}
-	
-	
+	}	
 	return $state;
 }
 
