@@ -597,7 +597,7 @@
          **/
         public function generate_data()
         {
-        	
+
         	$_POST =	array (
         			'page' => 'export-user-data',
         			'_wpnonce-q-eud-export-user-page_export' => '58bdd19bc9',
@@ -642,6 +642,7 @@
         			'woof_parse_query' => 1,
         	);
             // Check if the user clicked on the Save, Load, or Delete Settings buttons ##
+            /*
             if (
                 ! isset( $_POST['_wpnonce-q-eud-export-user-page_export'] )
                 || isset( $_POST['load_export'] )
@@ -652,7 +653,7 @@
                 return false;
 
             }
-
+*/
             // Increase maximum execution time to prevent "Maximum execution time exceeded" error ##
 //            ini_set( 'max_execution_time', -1 );
  //           ini_set( 'memory_limit', -1 ); // looks like a bad idea ##
@@ -703,13 +704,14 @@
             #wp_die( $this->pr ( $users ) );
 
             // no users found, so chuck an error into the args array and exit the export ##
+  echo "got here";          
             if ( ! $users ) {
 
                 wp_redirect( add_query_arg( 'error', 'empty', wp_get_referer() ) );
                 exit;
 
             }
-
+echo "then failed";
             // get sitename and clean it up ##
             $sitename = sanitize_key( get_bloginfo( 'name' ) );
             if ( ! empty( $sitename ) ) {
@@ -723,10 +725,10 @@
                 $export_method = sanitize_text_field( $_POST['format'] );
 
             }
-
+echo "then this this is whre";
             // set export filename structure ##
-            $filename = "../../wp-content/../uploads/data/".$sitename . 'users.' . date( 'Y-m-d-H-i-s' );
-
+   echo         $filename = $sitename . 'users.' . date( 'Y-m-d-H-i-s' );
+   echo $export_method = "csv";
             switch ( $export_method ) {
 
                 case ( 'csv' ):
@@ -1159,7 +1161,7 @@
             // close doc wrapper..
             $line .=  $doc_end;
 
-           	$fh	=	fopen("Tutors.csv", "w");
+           	$fh	=	fopen("../../../uploads/data/Tutors.csv", "w");
             
            	$fwrite	=	fwrite($fh, $line);
             
