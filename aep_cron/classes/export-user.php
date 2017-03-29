@@ -725,7 +725,7 @@
             }
 
             // set export filename structure ##
-            $filename = $sitename . 'users.' . date( 'Y-m-d-H-i-s' );
+            $filename = "../../wp-content/../uploads/data/".$sitename . 'users.' . date( 'Y-m-d-H-i-s' );
 
             switch ( $export_method ) {
 
