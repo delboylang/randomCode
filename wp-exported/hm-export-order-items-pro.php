@@ -1,5 +1,4 @@
 <?php
-
 /**
  * DO NOT UPDATE ! 
  * 
@@ -271,7 +270,8 @@ function hm_xoiwcp_export_header($dest) {
 		$header[] 	=	'Product Name';
 		$header[]	=	'Quantity';	
 	}
-
+	
+	
 	$dest->putRow ( $header, true );
 }
 
@@ -1517,11 +1517,9 @@ function hm_xoiwcp_add_schedulable_email_reports($reports) {
 	return $reports;
 }
 function hm_xoiwcp_run_scheduled_report($reportId, $start, $end, $args = array(), $output = false) {
-	$_POST ['format']	=	'csv';
-	/*
 	$savedReportSettings = get_option ( 'hm_xoiwcp_report_settings' );
 	if (! isset ( $savedReportSettings [0] ))
-	//	return false;
+		return false;
 	
 	if ($reportId == 'last') {
 		$presetIndex = 0;
@@ -1535,20 +1533,21 @@ function hm_xoiwcp_run_scheduled_report($reportId, $start, $end, $args = array()
 	}
 	if (! isset ( $presetIndex ))
 		return false;
-	*/	
+		
 		// Add one day to end since we're setting the time to midnight
 	$end += 86400;
-
+	
 	$prevPost = $_POST;
-	//$_POST = $savedReportSettings [$presetIndex];
+	$_POST = $savedReportSettings [$presetIndex];
 	$_POST ['report_time'] = 'custom';
 	$_POST ['report_start'] = date ( 'Y-m-d', $start );
 	$_POST ['report_start_time'] = '12:00:00 AM';
-	$_POST ['report_end'] 	= date ( 'Y-m-d', $end );
+	$_POST ['report_end'] = date ( 'Y-m-d', $end );
 	$_POST ['report_end_time'] = '12:00:00 AM';
-
-	staxo_setRequest();
-	$filepath =  '../../../uploads/data/'.$_REQUEST['reportType'] .'-Order-Items-Export' . ($presetIndex == 0 ? '' : ' - ' . $_POST ['preset_name']) . ' - ' . date ( 'Y-m-d', current_time ( 'timestamp' ) ) . '.' . ($_POST ['format'] == 'html-enhanced' ? 'html' : (in_array ( $_POST ['format'], array (
+	
+	$_POST = array_merge ( $_POST, array_intersect_key ( $args, $_POST ) );
+	
+	$filepath = get_temp_dir () . '/Order Items Export' . ($presetIndex == 0 ? '' : ' - ' . $_POST ['preset_name']) . ' - ' . date ( 'Y-m-d', current_time ( 'timestamp' ) ) . '.' . ($_POST ['format'] == 'html-enhanced' ? 'html' : (in_array ( $_POST ['format'], array (
 			'xlsx',
 			'xls',
 			'html' 
@@ -1569,12 +1568,13 @@ function hm_xoiwcp_run_scheduled_report($reportId, $start, $end, $args = array()
 		include_once (__DIR__ . '/HM_CSV_Export.php');
 		$out = fopen ( $output ? 'php://output' : $filepath, 'w' );
 		$dest = new HM_CSV_Export ( $out );
-		
 	}
-	 
-	hm_xoiwcp_export_header ( $dest );
-	hm_xoiwcp_export_body ( $dest, $start, $end );
-		
+	
+	if (! empty ( $_POST ['include_header'] ))
+		if(staxo_setRequest()){// Added by Del 
+			hm_xoiwcp_export_header ( $dest );
+			hm_xoiwcp_export_body ( $dest, $start, $end );
+		}
 		
 	
 	if ($_POST ['format'] == 'xlsx') {
@@ -1596,7 +1596,7 @@ function hm_xoiwcp_run_scheduled_report($reportId, $start, $end, $args = array()
 	}
 	
 	$_POST = $prevPost;
-	echo $filepath;
+	
 	return $filepath;
 }
 function hm_xoiwcp_report_order_statuses() {
@@ -1782,20 +1782,14 @@ function hm_xoiwcp_sanitize_license($new) {
  *  Method to set global Post method for the new report in module
  */
 function staxo_setRequest(){
-	
-	
-	
 	$state 					=	false;
 	$_POST['report_time']	=	"custom";
-	$_POST['customer_role']		=	"Tutor";
-	
 	$which =	"Price";
 	if(isset($_REQUEST['reportType']) && $_REQUEST['reportType'] == "invoice"){
 		$which	=	'Total Product Cost';
 	}
 	
 	$_POST['field_names'] 	=	array (
-										'user_id'=> 'User ID' ,
 										'order_date' => 'Order Date/Time',
 										'order_id' => 'Order ID',
 										'quantity' => 'Line Item Quantity',
@@ -1838,7 +1832,7 @@ function staxo_setRequest(){
 	
 	$storeRequest	=	array(
 							"invoice"=>array(
-												'order_date',
+									'order_date',
 												'__shop_order___order_number',
 												 'quantity',	
 												'__product___price',
@@ -1846,7 +1840,6 @@ function staxo_setRequest(){
 												 'order_shipping_cost',
 												 '__shop_order___order_total',
 												 'billing_name',
-												 '__shop_order___billing_email',
 												 '__shop_order___billing_address_1',
 												 '__shop_order___billing_postcode',
 												'order_status',
@@ -1899,7 +1892,6 @@ function staxo_setRequest(){
 		$_POST['order_statuses']	=	$status[$_REQUEST['reportType']];
 		$state	=	true;
 	}	
-	
 	return $state;
 }
 
@@ -1963,7 +1955,16 @@ heredoc;
 								$product->quantity		=	0.000001;
 								$product->__shop_order___order_total = $value->meta_value;
 								$refundOrder[] = $product;
-							}
+							}else{
+                                $product->order_id		=	$refund->order_id;
+                                $product->order_status	=	'wc-refunded';
+                                $product->order_date	= $refund->date;
+                                $product->__shop_order___order_total = $value->meta_value;
+                                $product->quantity		=	0.000002;
+                                $refundOrder[] = $product;
+
+
+                            }
 						}
 					}else{
 						$product->order_id		=	$refund->order_id;
